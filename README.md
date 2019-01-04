@@ -8,3 +8,4 @@ $ node cheerio-scraper.js
 ```
 
 © 2019 Sammi-Jo Lee
+¯\_(ツ)_/¯

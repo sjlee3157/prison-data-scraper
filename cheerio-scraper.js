@@ -3,38 +3,38 @@ const cheerio = require('cheerio');
 const cheerioTableparser = require('cheerio-tableparser');
 const createCsvWriter = require('csv-writer').createArrayCsvWriter;
 
-// Helper function to transpose a matrix
-const transpose = (a) => {
+// TODO:
+// write tests
 
+//////////////////////////////////////////////////////////////////
+// Helper functions
+//////////////////////////////////////////////////////////////////
+
+// Helper function to transpose a matrix (i.e. rows <--> cols)
+const transpose = (a) => {
   // Calculate the width and height of the matrix
   let cols = a.length || 0;
   let rows = a[0] instanceof Array ? a[0].length : 0;
-  // In case it is a zero matrix, no transpose routine needed
   if(rows === 0 || cols === 0) { return []; }
 
   let i, j, matrix = [];
 
   // Loop through every item in the outer array (rows)
   for(i=0; i<rows; i++) {
-
-    // Insert a new row (array)
+    // Insert a new row
     matrix[i] = [];
-
     // Loop through every item per item in outer array (cols)
     for(j=0; j<cols; j++) {
-
       // Save transposed matrix
       matrix[i][j] = a[j][i];
     }
   }
-
   return matrix;
 }
 
 // Helper function to parse HTML and return array of data
 const getData = (country) => {
-  const baseURL = 'http://www.prisonstudies.org/country/';
-  return rp(baseURL + country)
+  return rp(`http://www.prisonstudies.org/country/${country}`)
     .then((html) => {
       let $ = cheerio.load(html, {
         normalizeWhitespace: true,
@@ -70,7 +70,7 @@ const getData = (country) => {
 
         // TODO:
         // check if row is the same as previous before splicing together
-        // e.g. if row is the same, then data.splice(data.length -1, 1, secondPartOfData);
+        // e.g. if row is the same, then data.splice(data.length -1, 1, dataPartTwo);
 
       let fullData = headerRow.concat(dataPartOne).concat(dataPartTwo);
       return fullData;
@@ -90,7 +90,7 @@ let countries = ['united-states-america', 'canada', 'benin', 'morocco',
                  'indonesia', 'iran', 'mongolia', 'laos', 'macau-china',
                  'denmark', 'belgium', 'france', 'united-kingdom-england-wales',
                  'germany', 'iceland', 'hungary', 'taiwan', 'philippines',
-                 'not a real country'];
+                 'some bogus url'];
 
 // Loop through countries list to visit and scrape each country's page
 for(let i = 0; i < countries.length; i++) {

@@ -1,3 +1,4 @@
+const fs = require('fs');
 const rp = require('request-promise');
 const cheerio = require('cheerio');
 const cheerioTableparser = require('cheerio-tableparser');
@@ -33,51 +34,68 @@ const transpose = (a) => {
 }
 
 // Helper function to parse HTML and return array of data
-const getData = (country) => {
-  return rp(`http://www.prisonstudies.org/country/${country}`)
-    .then((html) => {
-      let $ = cheerio.load(html, {
-        normalizeWhitespace: true,
-        xmlMode: true
-      });
-
-      // Initialize the cheerio plugin(s)
-      cheerioTableparser($);
-
-      // Select main table (recent data)
-      let mainHtmlTable = $('#views-aggregator-datatable').first();
-      let mainTable = mainHtmlTable.parsetable(false, false, true);
-
-      // Get header row from main table in case there is no hidden table
-      let headerRow = [[]];
-      for(let i = 0; i < mainTable.length; i++){
-        headerRow[0].push(mainTable[i].shift());
-      }
-
-      // Select hidden table (older data)
-      let hiddenHtmlTable = $('#further_info_past_trends').find('table')
-      let hiddenTable = hiddenHtmlTable.parsetable(false, false, true);
-        // Remove header row from hidden table and parse
-      for(let i = 0; i < hiddenTable.length; i++){
-        hiddenTable[i].shift();
-        hiddenTable[i] = hiddenTable[i][0].split(' ');
-      }
-
-      // Stitch recent and older data into a single table
-      // and return as an array of arrays
-      let dataPartOne = transpose(hiddenTable);
-      let dataPartTwo = transpose(mainTable)
-
-        // TODO:
-        // check if row is the same as previous before splicing together
-        // e.g. if row is the same, then data.splice(data.length -1, 1, dataPartTwo);
-
-      let fullData = headerRow.concat(dataPartOne).concat(dataPartTwo);
-      return fullData;
-    })
-    .catch(() => {
-      console.log(`\n............Bad request (check URL for "${country}")`)
+const getData = async (country) => {
+  try {
+    const html = await rp(`http://www.prisonstudies.org/country/${country}`);
+    let $ = cheerio.load(html, {
+      normalizeWhitespace: true,
+      xmlMode: true
     });
+    // Initialize the cheerio plugin(s)
+    cheerioTableparser($);
+    // Select main table (recent data)
+    let mainHtmlTable = $('#views-aggregator-datatable').first();
+    let mainTable = mainHtmlTable.parsetable(false, false, true);
+
+    // Delete everything that's not a number
+    let regex = /[^0-9]/g;
+    for (let j = 0; j < mainTable.length; j++) {
+      for (let k = 1; k < mainTable[j].length; k++) {
+        mainTable[j][k] = mainTable[j][k].replace(regex, '');
+      }
+    }
+
+    // Get header row from main table in case there is no hidden table
+    let headerRow = [[]];
+    for (let i = 0; i < mainTable.length; i++) {
+      headerRow[0].push(mainTable[i].shift());
+    }
+
+    // Select hidden table (older data)
+    let hiddenHtmlTable = $('#further_info_past_trends').find('table');
+    let hiddenTable = hiddenHtmlTable.parsetable(false, false, true);
+
+    let newRegex = /[a-zA-Z]|\.|,/g;
+
+    // Remove header row from hidden table and parse
+    for (let j = 0; j < hiddenTable.length; j++) {
+      hiddenTable[j].shift();
+      // Delete everything that's not a number
+      hiddenTable[j][0] = hiddenTable[j][0].replace(newRegex, '').replace('  ', ' ');
+      hiddenTable[j] = hiddenTable[j][0].split(' ');
+    }
+    // Stitch recent and older data into a single table
+    // and return as an array of arrays
+    let dataPartOne = transpose(hiddenTable);
+    let dataPartTwo = transpose(mainTable);
+
+    // check if row is the same as previous before splicing together
+    if (dataPartOne[0] && dataPartTwo[0]) { 
+      let tailYear = dataPartOne[dataPartOne.length - 1][0];
+      let headYear = dataPartTwo[0][0];    
+      if (tailYear == headYear) {
+        dataPartOne.pop();
+      }
+    }
+
+    // splice
+    let fullData = headerRow.concat(dataPartOne).concat(dataPartTwo);
+    return fullData;
+  }
+  catch (e) {
+    console.log(e);
+    console.log(`\n............Bad request (check URL for "${country}")`);
+  }
 }
 
 //////////////////////////////////////////////////////////////////
@@ -86,24 +104,77 @@ const getData = (country) => {
 
 //TODO:
 // scrape, then load from external CSV
-let countries = ['united-states-america', 'canada', 'benin', 'morocco',
-                 'indonesia', 'iran', 'mongolia', 'laos', 'macau-china',
-                 'denmark', 'belgium', 'france', 'united-kingdom-england-wales',
-                 'germany', 'iceland', 'hungary', 'taiwan', 'philippines',
-                 'some bogus url'];
+// let countries = ['united-states-america', 'canada', 'benin', 'morocco',
+//                  'indonesia', 'iran', 'mongolia', 'laos', 'macau-china',
+//                  'denmark', 'belgium', 'france', 'united-kingdom-england-wales',
+//                  'germany', 'iceland', 'hungary', 'taiwan', 'philippines',
+//                  'some bogus url'];
+
+// let countries = ['antigua-and-barbuda'];
+
+let countries = fs.readFileSync('countries-list.txt').toString().split('\n');
+for(let country in countries) {
+  console.log(countries[country]);
+}
+console.log(`Successfully read ${countries.length} country URLs. \n`)
 
 // Loop through countries list to visit and scrape each country's page
-for(let i = 0; i < countries.length; i++) {
+let successCounter = (function() {
+  let successes = 0;
+  function addOne() {
+    successes += 1;
+  }
+  return {
+    increment: function() {
+      addOne();
+    },
+    value: function() {
+      return successes;
+    }
+  };
+})();
+
+let failureCounter = (function () {
+  let failures = 0;
+
+  function addOne() {
+    failures += 1;
+  }
+  return {
+    increment: function () {
+      addOne();
+    },
+    value: function () {
+      return failures;
+    }
+  };
+})();
+
+for (let i = 0; i < countries.length; i++) {
   getData(countries[i])
     .then((data) => {
       const csvWriter = createCsvWriter({
-        path: `./data/${countries[i]}.csv`
+        path: `./data/raw-data/${countries[i]}.csv`
       });
       csvWriter.writeRecords(data)
         .then(() => {
+          successCounter.increment();
           console.log(countries[i], '...Done');
+          if (i == countries.length - 1) {
+            console.log(`\nSuccessfully wrote ${successCounter.value()} files`);
+            console.log(`Failed to write ${failureCounter.value()} files`);
+          }
         })
     })
-    .catch(() =>
-    console.log('............(Error: no data)\n'));
+    .catch((e) => {
+      console.log(e);
+      failureCounter.increment();
+      console.log('............(Error: no data)\n');
+      if (i == countries.length - 1) {
+        console.log(`\nSuccessfully wrote ${successCounter.value()} files`);
+        console.log(`Failed to write ${failureCounter.value()} files`);
+      }
+    });
 }
+
+//TODO: the final console.log isn't printing synchronously

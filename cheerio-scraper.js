@@ -102,14 +102,11 @@ const getData = async (country) => {
 // Driver code: scrape and write the data to CSVs
 //////////////////////////////////////////////////////////////////
 
-//TODO:
-// scrape, then load from external CSV
 // let countries = ['united-states-america', 'canada', 'benin', 'morocco',
 //                  'indonesia', 'iran', 'mongolia', 'laos', 'macau-china',
 //                  'denmark', 'belgium', 'france', 'united-kingdom-england-wales',
 //                  'germany', 'iceland', 'hungary', 'taiwan', 'philippines',
 //                  'some bogus url'];
-
 // let countries = ['antigua-and-barbuda'];
 
 let countries = fs.readFileSync('countries-list.txt').toString().split('\n');

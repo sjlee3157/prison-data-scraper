@@ -138,5 +138,4 @@ async function writeToJSON() {
 
 writeToJSON();
 
-// Year,1,2
-
+// Year,FirstCountry,FirstRate,SecondCountry,SecondRate
